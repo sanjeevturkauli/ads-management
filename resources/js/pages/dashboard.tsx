@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
+import { route } from '@/lib/route';
 import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
-import { dashboard } from '@/routes';
 
 export default function Dashboard() {
     return (
@@ -30,7 +30,7 @@ Dashboard.layout = {
     breadcrumbs: [
         {
             title: 'Dashboard',
-            href: dashboard(),
+            href: route('admin.dashboard'),
         },
     ],
 };
