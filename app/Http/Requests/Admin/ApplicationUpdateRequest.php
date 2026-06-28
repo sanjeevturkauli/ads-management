@@ -25,7 +25,7 @@ class ApplicationUpdateRequest extends FormRequest
                 Rule::unique('applications', 'package_name')->ignore($applicationId),
             ],
             'platform' => ['required', Rule::in(['android', 'ios', 'both'])],
-            'icon' => ['nullable', 'string', 'max:500'],
+            'icon_url' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
             'current_version' => ['required', 'string', 'max:50'],
             'minimum_version' => ['required', 'string', 'max:50'],

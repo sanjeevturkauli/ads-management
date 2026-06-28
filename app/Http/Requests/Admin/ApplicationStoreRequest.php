@@ -18,7 +18,7 @@ class ApplicationStoreRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'package_name' => ['required', 'string', 'max:255', 'unique:applications,package_name'],
             'platform' => ['required', Rule::in(['android', 'ios', 'both'])],
-            'icon' => ['nullable', 'string', 'max:500'],
+            'icon_url' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
             'current_version' => ['required', 'string', 'max:50'],
             'minimum_version' => ['required', 'string', 'max:50'],

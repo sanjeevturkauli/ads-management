@@ -408,13 +408,21 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
-                                                        {app.icon_url && (
-                                                            <img
-                                                                src={app.icon_url}
-                                                                alt={app.name}
-                                                                className="h-10 w-10 rounded-lg"
-                                                            />
-                                                        )}
+                                                        <div className="h-10 w-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
+                                                            {app.icon_url ? (
+                                                                <img
+                                                                    src={app.icon_url}
+                                                                    alt={app.name}
+                                                                    className="h-full w-full object-cover"
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.style.display = 'none';
+                                                                        e.currentTarget.parentElement!.innerHTML = `<div class="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center"><span class="text-lg font-bold text-primary">${app.name.charAt(0).toUpperCase()}</span></div>`;
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <Smartphone className="h-5 w-5 text-muted-foreground" />
+                                                            )}
+                                                        </div>
                                                         <div>
                                                             <Link
                                                                 href={route(
@@ -425,9 +433,31 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                                             >
                                                                 {app.name}
                                                             </Link>
-                                                            <p className="text-sm text-muted-foreground">
+                                                            <a
+                                                                href={
+                                                                    app.platform === 'android'
+                                                                        ? `https://play.google.com/store/apps/details?id=${app.package_name}`
+                                                                        : `https://apps.apple.com/app/${app.package_name}`
+                                                                }
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-sm text-blue-600 hover:underline dark:text-blue-400 flex items-center gap-1"
+                                                            >
                                                                 {app.package_name}
-                                                            </p>
+                                                                <svg
+                                                                    className="h-3 w-3"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    viewBox="0 0 24 24"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={2}
+                                                                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                                                    />
+                                                                </svg>
+                                                            </a>
                                                         </div>
                                                     </div>
                                                 </TableCell>

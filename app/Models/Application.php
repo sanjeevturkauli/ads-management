@@ -19,7 +19,7 @@ class Application extends Model
         'name',
         'package_name',
         'platform',
-        'icon',
+        'icon_url',
         'description',
         'current_version',
         'minimum_version',
