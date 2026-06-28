@@ -36,7 +36,7 @@ class ConfigController extends Controller
      */
     public function show(Request $request): JsonResponse
     {
-        $application = $request->get('application_model');
+        $application = $request->input('application_model');
 
         if (! $application) {
             return response()->json([

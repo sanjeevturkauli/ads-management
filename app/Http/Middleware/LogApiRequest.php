@@ -17,39 +17,39 @@ class LogApiRequest
 
         $responseTime = (microtime(true) - $startTime) * 1000; // Convert to milliseconds
 
+        // Extract data before queuing to avoid serialization issues
+        $logData = [
+            'api_key_id' => $request->input('api_key_model')?->id,
+            'application_id' => $request->input('application_model')?->id,
+            'endpoint' => $request->path(),
+            'method' => $request->method(),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'response_code' => $response->getStatusCode(),
+            'response_time' => $responseTime,
+            'request_headers' => $this->filterSensitiveHeaders($request->headers->all()),
+            'request_body' => $request->method() !== 'GET' ? $request->except(['password', 'api_key']) : null,
+            'response_body' => $this->getResponseBody($response),
+            'error_message' => $response->getStatusCode() >= 400 ? $this->getErrorMessage($response) : null,
+        ];
+
         // Log in background (queue)
-        dispatch(function () use ($request, $response, $responseTime) {
-            $this->logRequest($request, $response, $responseTime);
+        dispatch(function () use ($logData) {
+            $this->logRequest($logData);
         })->afterResponse();
 
         return $response;
     }
 
-    private function logRequest(Request $request, Response $response, float $responseTime): void
+    private function logRequest(array $logData): void
     {
         try {
-            $apiKey = $request->get('api_key_model');
-            $application = $request->get('application_model');
-
-            ApiLog::create([
-                'api_key_id' => $apiKey?->id,
-                'application_id' => $application?->id,
-                'endpoint' => $request->path(),
-                'method' => $request->method(),
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'response_code' => $response->getStatusCode(),
-                'response_time' => $responseTime,
-                'request_headers' => $this->filterSensitiveHeaders($request->headers->all()),
-                'request_body' => $request->method() !== 'GET' ? $request->except(['password', 'api_key']) : null,
-                'response_body' => $this->getResponseBody($response),
-                'error_message' => $response->getStatusCode() >= 400 ? $this->getErrorMessage($response) : null,
-            ]);
+            ApiLog::create($logData);
         } catch (\Exception $e) {
             // Silently fail - don't break the API response
             logger()->error('Failed to log API request', [
                 'error' => $e->getMessage(),
-                'endpoint' => $request->path(),
+                'endpoint' => $logData['endpoint'] ?? 'unknown',
             ]);
         }
     }

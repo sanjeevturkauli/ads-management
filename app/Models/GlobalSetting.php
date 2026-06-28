@@ -41,16 +41,20 @@ class GlobalSetting extends Model
     public static function get(string $key, $default = null)
     {
         $settings = Cache::rememberForever('global_settings', function () {
-            return self::all()->keyBy('key');
+            return self::all()->mapWithKeys(function ($setting) {
+                return [$setting->key => [
+                    'value' => $setting->getValue(),
+                    'type' => $setting->type,
+                    'is_public' => $setting->is_public,
+                ]];
+            })->toArray();
         });
 
-        $setting = $settings->get($key);
-
-        if (! $setting) {
+        if (! isset($settings[$key])) {
             return $default;
         }
 
-        return $setting->getValue();
+        return $settings[$key]['value'];
     }
 
     public static function set(string $key, $value, string $type = 'string', bool $isEncrypted = false): void

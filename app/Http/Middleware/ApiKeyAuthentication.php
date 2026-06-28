@@ -16,7 +16,7 @@ class ApiKeyAuthentication
 
     public function handle(Request $request, Closure $next): Response
     {
-        $apiKey = $request->header('X-API-Key') ?? $request->get('api_key');
+        $apiKey = $request->header('X-API-Key') ?? $request->input('api_key');
 
         if (! $apiKey) {
             return response()->json([
