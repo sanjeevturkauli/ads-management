@@ -48,6 +48,9 @@ const routes: Record<string, string> = {
     'admin.applications.destroy': '/admin/applications/:id',
     'admin.applications.bulk-status': '/admin/applications/bulk-status',
     'admin.applications.bulk-delete': '/admin/applications/bulk-delete',
+    'admin.applications.sync': '/admin/applications/:id/sync',
+    'admin.applications.sync-status': '/admin/applications/:id/sync-status',
+    'admin.applications.sync-all': '/admin/applications/sync-all',
     
     // Ad Units
     'admin.applications.ad-units.index': '/admin/applications/:application/ad-units',
@@ -66,6 +69,7 @@ const routes: Record<string, string> = {
     'admin.accounts.play-console.sync': '/admin/accounts/:id/play-console/sync',
     'admin.accounts.play-console.import': '/admin/accounts/:id/play-console/import',
     'admin.accounts.play-console.test': '/admin/accounts/:id/play-console/test',
+    'admin.applications.destroy': '/admin/applications/:id',
 
     // API Keys
     'admin.applications.api-keys.index': '/admin/applications/:application/api-keys',

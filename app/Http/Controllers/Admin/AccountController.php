@@ -20,7 +20,7 @@ class AccountController extends Controller
             ->orderBy('provider')
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(fn ($account) => [
+            ->map(fn (ConnectedAccount $account) => [
                 'id'             => $account->id,
                 'provider'       => $account->provider,
                 'provider_label' => $account->provider_label,
@@ -33,6 +33,7 @@ class AccountController extends Controller
                     'id'   => $account->user->id,
                     'name' => $account->user->name,
                 ],
+                'credentials'    => $this->getDecryptedCredentials($account),
             ]);
 
         $statistics = [
@@ -49,6 +50,23 @@ class AccountController extends Controller
             'statistics' => $statistics,
             'providers'  => ConnectedAccount::PROVIDERS,
         ]);
+    }
+
+    /**
+     * Safely return decrypted credentials for edit pre-fill.
+     * Sensitive keys are returned in full so the user can update them.
+     */
+    private function getDecryptedCredentials(ConnectedAccount $account): array
+    {
+        $raw = $account->getDecrypted('encrypted_credentials');
+
+        if (! $raw) {
+            return [];
+        }
+
+        $data = json_decode($raw, true);
+
+        return is_array($data) ? $data : [];
     }
 
     /**
@@ -96,8 +114,16 @@ class AccountController extends Controller
         ];
 
         if (! empty($validated['credentials'])) {
-            $this->validateProviderCredentials($account->provider, $validated['credentials']);
-            $updateData['encrypted_credentials'] = json_encode($validated['credentials']);
+            $this->validateProviderCredentials($account->provider, $validated['credentials'], true);
+
+            // Merge new credentials with existing — only overwrite non-empty fields
+            $existing = $this->getDecryptedCredentials($account);
+            $merged   = array_merge(
+                $existing,
+                array_filter($validated['credentials'], fn($v) => $v !== null && $v !== '')
+            );
+
+            $updateData['encrypted_credentials'] = json_encode($merged);
         }
 
         $account->update($updateData);
@@ -134,21 +160,23 @@ class AccountController extends Controller
     /**
      * Validate provider-specific credential fields.
      */
-    private function validateProviderCredentials(string $provider, array $credentials): void
+    private function validateProviderCredentials(string $provider, array $credentials, bool $isEdit = false): void
     {
+        $req = $isEdit ? 'nullable' : 'required';
+
         $rules = match ($provider) {
             'google_play_console' => [
-                'service_account_email' => ['required', 'string', 'email'],
-                'private_key'           => ['required', 'string'],
-                'project_id'            => ['required', 'string'],
+                'service_account_email' => [$req, 'string', 'email'],
+                'private_key'           => [$req, 'string'],
+                'project_id'            => [$req, 'string'],
                 'package_names'         => ['nullable', 'string'],
             ],
             'google_ads' => [
-                'developer_token'   => ['required', 'string'],
-                'client_id'         => ['required', 'string'],
-                'client_secret'     => ['required', 'string'],
-                'refresh_token'     => ['required', 'string'],
-                'manager_id'        => ['nullable', 'string'],
+                'developer_token' => [$req, 'string'],
+                'client_id'       => [$req, 'string'],
+                'client_secret'   => [$req, 'string'],
+                'refresh_token'   => [$req, 'string'],
+                'manager_id'      => ['nullable', 'string'],
             ],
             default => [],
         };

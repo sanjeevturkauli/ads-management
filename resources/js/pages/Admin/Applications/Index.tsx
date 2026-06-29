@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { route } from '@/lib/route';
 import toast from 'react-hot-toast';
 import {
@@ -12,6 +12,9 @@ import {
     AlertCircle,
     Archive,
     Trash2,
+    RefreshCw,
+    Star,
+    Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +25,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-
 import {
     Select,
     SelectContent,
@@ -43,6 +45,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DeleteConfirmationModal } from '@/components/delete-confirmation-modal';
 import { TableActions } from '@/components/table-actions';
 import { ButtonGroup } from '@/components/ui/button-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
+
+type SyncStatus = 'pending' | 'syncing' | 'synced' | 'failed';
 
 type Application = {
     id: string;
@@ -51,7 +57,17 @@ type Application = {
     platform: 'android' | 'ios';
     status: 'active' | 'inactive' | 'maintenance' | 'archived';
     icon_url?: string;
+    banner_url?: string;
     description?: string;
+    developer_name?: string;
+    category?: string;
+    rating?: number;
+    ratings_count?: number;
+    installs?: string;
+    play_status?: string;
+    sync_status?: SyncStatus;
+    last_synced_at?: string;
+    sync_error?: string;
     current_version: string;
     ads_enabled: boolean;
     created_at: string;
@@ -91,6 +107,66 @@ const statusConfig = {
     archived: { label: 'Archived', icon: Archive, color: 'bg-red-500' },
 };
 
+// ─── Play status badge ────────────────────────────────────────────────────────
+const PLAY_STATUS_STYLES: Record<string, string> = {
+    PUBLISHED:   'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    DRAFT:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+    IN_REVIEW:   'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    BETA:        'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+    ALPHA:       'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    INTERNAL:    'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+    HALTED:      'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    REMOVED:     'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+};
+
+function PlayStatusCell({ status }: { status?: string }) {
+    if (!status) return <span className="text-xs text-muted-foreground">—</span>;
+    const cls = PLAY_STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-500';
+    return <Badge className={`text-xs ${cls}`}>{status.replace(/_/g, ' ')}</Badge>;
+}
+
+// ─── Sync status cell ─────────────────────────────────────────────────────────
+function SyncStatusCell({ app, isSyncing, onSync }: {
+    app: Application;
+    isSyncing: boolean;
+    onSync: () => void;
+}) {
+    const isActive = isSyncing || app.sync_status === 'pending' || app.sync_status === 'syncing';
+
+    return (
+        <div className="flex items-center gap-1.5">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        size="icon" variant="ghost"
+                        className="h-7 w-7 cursor-pointer text-muted-foreground hover:text-primary"
+                        onClick={onSync}
+                        disabled={isActive}
+                    >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isActive ? 'animate-spin text-blue-500' : ''}`} />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    {isActive ? 'Syncing…' :
+                        app.last_synced_at
+                            ? `Last synced: ${new Date(app.last_synced_at).toLocaleDateString()}`
+                            : 'Sync Play Store metadata'}
+                </TooltipContent>
+            </Tooltip>
+            {app.sync_status === 'failed' && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <AlertCircle className="h-3.5 w-3.5 text-red-500 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                        <p className="text-xs">{app.sync_error ?? 'Sync failed'}</p>
+                    </TooltipContent>
+                </Tooltip>
+            )}
+        </div>
+    );
+}
+
 export default function ApplicationsIndex({ applications, statistics, filters }: Props) {
     const [search, setSearch] = useState(filters.search || '');
     const [selectedApps, setSelectedApps] = useState<string[]>([]);
@@ -98,6 +174,108 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
     const [appToDelete, setAppToDelete] = useState<string | null>(null);
     const [isBulkDelete, setIsBulkDelete] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [syncingApps, setSyncingApps] = useState<Record<string, boolean>>({});
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // ── Auto-poll: if any app is pending/syncing, reload every 3s until all done ──
+    const hasPendingSync = applications.data.some(
+        (a) => a.sync_status === 'pending' || a.sync_status === 'syncing'
+    );
+
+    useEffect(() => {
+        if (!hasPendingSync) {
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            return;
+        }
+        if (pollRef.current) return; // already polling
+
+        pollRef.current = setInterval(() => {
+            router.reload({ only: ['applications'], onSuccess: () => {
+                // stop when no more pending
+                const stillPending = applications.data.some(
+                    a => a.sync_status === 'pending' || a.sync_status === 'syncing'
+                );
+                if (!stillPending) {
+                    clearInterval(pollRef.current!);
+                    pollRef.current = null;
+                }
+            }});
+        }, 3000);
+
+        return () => {
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasPendingSync]);
+
+    const handleSyncOne = useCallback((app: Application) => {
+        setSyncingApps(p => ({ ...p, [app.id]: true }));
+
+        const promise = fetch(route('admin.applications.sync', app.id), {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ force: true }),
+        })
+            .then(r => r.json())
+            .then(() => {
+                // Poll for completion every 3 seconds
+                if (pollRef.current) clearInterval(pollRef.current);
+                pollRef.current = setInterval(() => {
+                    fetch(route('admin.applications.sync-status', app.id), {
+                        headers: { 'Accept': 'application/json' },
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.sync_status === 'synced' || data.sync_status === 'failed') {
+                                clearInterval(pollRef.current!);
+                                setSyncingApps(p => ({ ...p, [app.id]: false }));
+                                // Reload page to show updated metadata
+                                router.reload({ only: ['applications'] });
+                            }
+                        })
+                        .catch(() => {
+                            clearInterval(pollRef.current!);
+                            setSyncingApps(p => ({ ...p, [app.id]: false }));
+                        });
+                }, 3000);
+            })
+            .catch(() => {
+                setSyncingApps(p => ({ ...p, [app.id]: false }));
+                throw new Error('Sync request failed');
+            });
+
+        toast.promise(promise, {
+            loading: `Syncing ${app.name}…`,
+            success: 'Sync queued — metadata will update shortly.',
+            error:   'Could not queue sync.',
+        });
+    }, []);
+
+    const handleSyncAll = useCallback(() => {
+        const promise = fetch(route('admin.applications.sync-all'), {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+        })
+            .then(r => r.json())
+            .then(data => {
+                setTimeout(() => router.reload({ only: ['applications'] }), 5000);
+                return data.message;
+            });
+
+        toast.promise(promise, {
+            loading: 'Queuing sync for all apps…',
+            success: (msg: string) => msg,
+            error:   'Could not queue sync.',
+        });
+    }, []);
 
     const handleSearch = (value: string) => {
         setSearch(value);
@@ -273,13 +451,23 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                     Manage your mobile applications and their configurations
                                 </CardDescription>
                             </div>
-                            <Button asChild>
-                                <Link href={route('admin.applications.create')}>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Add Application
-                                </Link>
-                            </Button>
-                        </div>
+                            <div className="flex items-center gap-2">
+                                <Button asChild>
+                                    <Link href={route('admin.applications.create')}>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Application
+                                    </Link>
+                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="outline" onClick={handleSyncAll}>
+                                            <RefreshCw className="mr-2 h-4 w-4" />
+                                            Sync All
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Fetch Play Store metadata for all apps</TooltipContent>
+                                </Tooltip>
+                            </div>                        </div>
 
                         {/* Search and Filters */}
                         <div className="flex flex-col gap-4 pt-4 md:flex-row">
@@ -382,6 +570,8 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                     <TableHead>Version</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Ads</TableHead>
+                                    <TableHead>Play Store</TableHead>
+                                    <TableHead>Sync</TableHead>
                                     <TableHead>Created</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -419,45 +609,50 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                                                         e.currentTarget.parentElement!.innerHTML = `<div class="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center"><span class="text-lg font-bold text-primary">${app.name.charAt(0).toUpperCase()}</span></div>`;
                                                                     }}
                                                                 />
+                                                            ) : app.sync_status === 'pending' || app.sync_status === 'syncing' ? (
+                                                                <Skeleton className="h-10 w-10 rounded-lg" />
                                                             ) : (
-                                                                <Smartphone className="h-5 w-5 text-muted-foreground" />
+                                                                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                                                    <span className="text-lg font-bold text-primary">{app.name.charAt(0).toUpperCase()}</span>
+                                                                </div>
                                                             )}
                                                         </div>
-                                                        <div>
+                                                        <div className="min-w-0">
                                                             <Link
-                                                                href={route(
-                                                                    'admin.applications.show',
-                                                                    app.id
-                                                                )}
-                                                                className="font-medium hover:underline"
+                                                                href={route('admin.applications.show', app.id)}
+                                                                className="font-medium hover:underline truncate block"
                                                             >
                                                                 {app.name}
                                                             </Link>
                                                             <a
-                                                                href={
-                                                                    app.platform === 'android'
-                                                                        ? `https://play.google.com/store/apps/details?id=${app.package_name}`
-                                                                        : `https://apps.apple.com/app/${app.package_name}`
-                                                                }
+                                                                href={`https://play.google.com/store/apps/details?id=${app.package_name}`}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="text-sm text-blue-600 hover:underline dark:text-blue-400 flex items-center gap-1"
+                                                                className="text-xs text-blue-600 hover:underline dark:text-blue-400 truncate block"
                                                             >
                                                                 {app.package_name}
-                                                                <svg
-                                                                    className="h-3 w-3"
-                                                                    fill="none"
-                                                                    stroke="currentColor"
-                                                                    viewBox="0 0 24 24"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={2}
-                                                                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                                                                    />
-                                                                </svg>
                                                             </a>
+                                                            {/* Metadata row */}
+                                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                                {app.developer_name && (
+                                                                    <span className="text-xs text-muted-foreground truncate">{app.developer_name}</span>
+                                                                )}
+                                                                {app.category && (
+                                                                    <Badge variant="outline" className="text-xs h-4 px-1">{app.category}</Badge>
+                                                                )}
+                                                                {app.rating != null && (
+                                                                    <span className="flex items-center gap-0.5 text-xs text-amber-500">
+                                                                        <Star className="h-3 w-3 fill-amber-400" />
+                                                                        {app.rating.toFixed(1)}
+                                                                    </span>
+                                                                )}
+                                                                {app.installs && (
+                                                                    <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                                                                        <Download className="h-3 w-3" />
+                                                                        {app.installs}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </TableCell>
@@ -486,6 +681,18 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                                     ) : (
                                                         <Badge variant="secondary">Disabled</Badge>
                                                     )}
+                                                </TableCell>
+                                                {/* Play Store status */}
+                                                <TableCell>
+                                                    <PlayStatusCell status={app.play_status} />
+                                                </TableCell>
+                                                {/* Sync status */}
+                                                <TableCell>
+                                                    <SyncStatusCell
+                                                        app={app}
+                                                        isSyncing={!!syncingApps[app.id]}
+                                                        onSync={() => handleSyncOne(app)}
+                                                    />
                                                 </TableCell>
                                                 <TableCell>
                                                     {new Date(app.created_at).toLocaleDateString()}

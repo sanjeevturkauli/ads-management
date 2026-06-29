@@ -36,21 +36,24 @@ class PlayConsoleSyncController extends Controller
 
         try {
             $remoteApps   = $this->playService->fetchApps($account);
-            $existingPkgs = Application::withTrashed()
-                ->pluck('platform', 'package_name')
-                ->toArray();
+            $existingApps = Application::withTrashed()
+                ->select('id', 'package_name', 'deleted_at')
+                ->get()
+                ->keyBy('package_name');
 
-            $apps = collect($remoteApps)->map(function ($app) use ($existingPkgs) {
-                $pkg    = $app['packageName'] ?? $app['name'] ?? null;
-                $exists = isset($existingPkgs[$pkg]);
+            $apps = collect($remoteApps)->map(function ($app) use ($existingApps) {
+                $pkg        = $app['packageName'] ?? $app['name'] ?? null;
+                $existing   = $pkg ? $existingApps->get($pkg) : null;
+                $softDeleted = $existing && $existing->deleted_at !== null;
 
                 return [
-                    'package_name'  => $pkg,
-                    'name'          => $app['title'] ?? $app['appName'] ?? $this->nameFromPackage($pkg ?? ''),
-                    'icon_url'      => $app['iconUrl'] ?? $app['icon'] ?? null,
-                    'status'        => $app['status'] ?? 'ACTIVE',
-                    'last_updated'  => $app['lastUpdatedTimestamp'] ?? null,
-                    'already_added' => $exists,
+                    'package_name'   => $pkg,
+                    'name'           => $app['title'] ?? $app['appName'] ?? $this->nameFromPackage($pkg ?? ''),
+                    'icon_url'       => $app['iconUrl'] ?? $app['icon'] ?? null,
+                    'status'         => $app['status'] ?? 'UNKNOWN',
+                    'last_updated'   => $app['lastUpdatedTimestamp'] ?? null,
+                    'already_added'  => $existing !== null && ! $softDeleted,
+                    'application_id' => ($existing && ! $softDeleted) ? $existing->id : null,
                 ];
             })->filter(fn($a) => ! empty($a['package_name']))->values()->toArray();
 
@@ -79,7 +82,8 @@ class PlayConsoleSyncController extends Controller
     }
 
     /**
-     * Import selected apps from Play Console into Applications.
+     * Import selected apps from Play Console into Applications,
+     * then dispatch metadata sync jobs for each newly created app.
      */
     public function import(Request $request, ConnectedAccount $account): RedirectResponse
     {
@@ -88,43 +92,42 @@ class PlayConsoleSyncController extends Controller
             'packages.*' => ['required', 'string'],
         ]);
 
-        $imported = 0;
-        $skipped  = 0;
-        $errors   = [];
+        $imported    = 0;
+        $skipped     = 0;
+        $newApps     = [];
 
-        DB::transaction(function () use ($account, $validated, &$imported, &$skipped, &$errors) {
+        DB::transaction(function () use ($account, $validated, &$imported, &$skipped, &$newApps) {
             foreach ($validated['packages'] as $packageName) {
-                // Skip if already exists
                 if (Application::where('package_name', $packageName)->withTrashed()->exists()) {
                     $skipped++;
                     continue;
                 }
 
-                try {
-                    // Try to fetch detailed info for this package
-                    $details = $this->tryFetchDetails($account, $packageName);
+                $app = Application::create([
+                    'name'            => $this->nameFromPackage($packageName),
+                    'package_name'    => $packageName,
+                    'platform'        => 'android',
+                    'status'          => 'active',
+                    'sync_status'     => 'pending',
+                    'play_store_url'  => "https://play.google.com/store/apps/details?id={$packageName}",
+                    'current_version' => '1.0.0',
+                    'minimum_version' => '1.0.0',
+                    'latest_version'  => '1.0.0',
+                    'created_by'      => auth()->id(),
+                    'updated_by'      => auth()->id(),
+                ]);
 
-                    Application::create([
-                        'name'            => $details['name'] ?? $this->nameFromPackage($packageName),
-                        'package_name'    => $packageName,
-                        'platform'        => 'android',
-                        'icon_url'        => $details['icon_url'] ?? null,
-                        'description'     => $details['description'] ?? null,
-                        'current_version' => $details['version'] ?? '1.0.0',
-                        'minimum_version' => '1.0.0',
-                        'latest_version'  => $details['version'] ?? '1.0.0',
-                        'status'          => 'active',
-                        'created_by'      => auth()->id(),
-                        'updated_by'      => auth()->id(),
-                    ]);
-
-                    $imported++;
-
-                } catch (\Exception $e) {
-                    $errors[] = "{$packageName}: {$e->getMessage()}";
-                }
+                $newApps[] = $app;
+                $imported++;
             }
         });
+
+        // Dispatch background sync jobs for all newly imported apps
+        foreach ($newApps as $i => $app) {
+            \App\Jobs\SyncApplicationMetadataJob::dispatch($app, true)
+                ->onQueue('default')
+                ->delay(now()->addSeconds($i * 2));
+        }
 
         // Update last synced
         $account->update(['last_synced_at' => now()]);

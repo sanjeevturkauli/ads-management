@@ -9,12 +9,16 @@ import {
     AlertCircle,
     Smartphone,
     RefreshCw,
+    HelpCircle,
+    Trash2,
+    ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Link } from '@inertiajs/react';
 
 type PlayApp = {
@@ -24,6 +28,7 @@ type PlayApp = {
     status: string;
     last_updated: string | null;
     already_added: boolean;
+    application_id: string | null;
 };
 
 type Account = {
@@ -38,12 +43,73 @@ type Props = {
     fetchError: string | null;
 };
 
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+const PLAY_STATUS_STYLES: Record<string, string> = {
+    PUBLISHED:   'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    PRODUCTION:  'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    IN_REVIEW:   'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    BETA:        'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+    BETA_REVIEW: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+    ALPHA:       'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    INTERNAL:    'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+    DRAFT:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+    HALTED:      'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    REMOVED:     'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+    NOT_FOUND:   'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+};
+
+function PlayStatusBadge({ status }: { status: string }) {
+    const upper = status.toUpperCase();
+
+    const LABELS: Record<string, string> = {
+        PUBLISHED:   'Published',
+        DRAFT:       'Draft',
+        IN_REVIEW:   'In Review',
+        IN_PROGRESS: 'In Progress',
+        BETA:        'Beta',
+        ALPHA:       'Alpha',
+        INTERNAL:    'Internal',
+        HALTED:      'Halted',
+        REMOVED:     'Removed by Google',
+        NOT_FOUND:   'Not Found',
+        UNKNOWN:     'Unknown',
+    };
+
+    if (upper === 'UNKNOWN') {
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-xs gap-1 cursor-help border border-dashed border-gray-300 dark:border-gray-600">
+                        <HelpCircle className="h-3 w-3" />
+                        Unknown
+                    </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-center">
+                    <p>Status could not be determined.</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Grant your service account the "Release manager" role in Google Play Console to see the real status.
+                    </p>
+                </TooltipContent>
+            </Tooltip>
+        );
+    }
+
+    const cls   = PLAY_STATUS_STYLES[upper] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+    const label = LABELS[upper] ?? status.replace(/_/g, ' ');
+    return <Badge className={`text-xs ${cls}`}>{label}</Badge>;
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
     const newApps      = apps.filter((a) => !a.already_added);
     const existingApps = apps.filter((a) => a.already_added);
 
     const [selected, setSelected] = useState<string[]>(newApps.map((a) => a.package_name));
     const [importing, setImporting] = useState(false);
+    const [removingId, setRemovingId] = useState<string | null>(null);
 
     const allNewSelected = newApps.length > 0 && selected.length === newApps.length;
 
@@ -57,8 +123,7 @@ export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
         );
     };
 
-    const handleImport = () => {
-        if (selected.length === 0) {
+    const handleImport = () => {        if (selected.length === 0) {
             toast.error('Select at least one app to import.');
             return;
         }
@@ -78,6 +143,22 @@ export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
         toast.promise(promise, {
             loading: `Importing ${selected.length} app(s)…`,
             success: 'Apps imported successfully!',
+            error:   (e) => String(e),
+        });
+    };
+
+    const handleRemove = (app: PlayApp) => {
+        if (!app.application_id) return;
+        setRemovingId(app.application_id);
+        const promise = new Promise<void>((resolve, reject) => {
+            router.delete(route('admin.applications.destroy', app.application_id!), {
+                onSuccess: () => { setRemovingId(null); resolve(); },
+                onError:   () => { setRemovingId(null); reject('Failed to remove.'); },
+            });
+        });
+        toast.promise(promise, {
+            loading: `Removing "${app.name}"…`,
+            success: 'App removed from system.',
             error:   (e) => String(e),
         });
     };
@@ -204,6 +285,7 @@ export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
                                         <TableHead>Package Name</TableHead>
                                         <TableHead>Play Status</TableHead>
                                         <TableHead>Import Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -221,21 +303,30 @@ export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                                                    <div className="h-10 w-10 rounded-lg overflow-hidden bg-primary/10 flex items-center justify-center shrink-0">
                                                         {app.icon_url ? (
                                                             <img
                                                                 src={app.icon_url}
                                                                 alt={app.name}
-                                                                className="h-full w-full object-cover"
+                                                                className="h-full w-full object-cover rounded-lg"
                                                                 onError={(e) => {
-                                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                                    const el = e.target as HTMLImageElement;
+                                                                    el.style.display = 'none';
+                                                                    const parent = el.parentElement;
+                                                                    if (parent) {
+                                                                        parent.innerHTML = `<span class="text-base font-bold text-primary">${app.name.charAt(0).toUpperCase()}</span>`;
+                                                                    }
                                                                 }}
                                                             />
                                                         ) : (
-                                                            <Smartphone className="h-5 w-5 text-muted-foreground" />
+                                                            <span className="text-base font-bold text-primary">
+                                                                {app.name.charAt(0).toUpperCase()}
+                                                            </span>
                                                         )}
                                                     </div>
-                                                    <span className="font-medium">{app.name}</span>
+                                                    <div>
+                                                        <p className="font-medium">{app.name}</p>
+                                                    </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -244,9 +335,7 @@ export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
                                                 </code>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant="outline" className="text-xs">
-                                                    {app.status}
-                                                </Badge>
+                                                <PlayStatusBadge status={app.status} />
                                             </TableCell>
                                             <TableCell>
                                                 {app.already_added ? (
@@ -259,6 +348,42 @@ export default function PlayConsoleSync({ account, apps, fetchError }: Props) {
                                                         <Download className="h-3 w-3" />
                                                         Ready to Import
                                                     </Badge>
+                                                )}
+                                            </TableCell>
+                                            {/* Actions */}
+                                            <TableCell className="text-right">
+                                                {app.already_added && app.application_id ? (
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    size="icon" variant="ghost"
+                                                                    className="h-8 w-8 cursor-pointer"
+                                                                    onClick={() => router.visit(route('admin.applications.show', app.application_id!))}
+                                                                >
+                                                                    <ExternalLink className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>View in Applications</p></TooltipContent>
+                                                        </Tooltip>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    size="icon" variant="ghost"
+                                                                    className="h-8 w-8 cursor-pointer text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                                                    disabled={removingId === app.application_id}
+                                                                    onClick={() => handleRemove(app)}
+                                                                >
+                                                                    {removingId === app.application_id
+                                                                        ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                                                        : <Trash2 className="h-4 w-4" />}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Remove from system</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground text-xs">—</span>
                                                 )}
                                             </TableCell>
                                         </TableRow>

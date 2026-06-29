@@ -1,5 +1,5 @@
-import { Head, router, useForm } from '@inertiajs/react';
-import { useState, useMemo } from 'react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { useState, useMemo, useEffect } from 'react';
 import { route } from '@/lib/route';
 import toast from 'react-hot-toast';
 import {
@@ -16,6 +16,7 @@ import {
     Edit2,
     Search,
     Filter,
+    LayoutList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +63,7 @@ type ConnectedAccount = {
     last_synced_at: string | null;
     created_at: string;
     user: { id: number; name: string };
+    credentials: Record<string, string>;
 };
 
 type Statistics = {
@@ -99,8 +101,7 @@ const CREDENTIAL_FIELDS: Record<string, CredentialField[]> = {
     google_play_console: [
         { key: 'service_account_email', label: 'Service Account Email',  placeholder: 'your-service@project.iam.gserviceaccount.com' },
         { key: 'project_id',            label: 'Google Cloud Project ID', placeholder: 'my-project-123456' },
-        { key: 'private_key',           label: 'Private Key (PEM)',       placeholder: '-----BEGIN RSA PRIVATE KEY-----', sensitive: true, multiline: true },
-        { key: 'package_names',         label: 'Package Names (one per line or comma-separated)', placeholder: 'com.example.app1\ncom.example.app2', multiline: true },
+        { key: 'private_key',           label: 'Private Key (PEM)',       placeholder: '-----BEGIN PRIVATE KEY-----', sensitive: true, multiline: true },
     ],
     google_ads: [
         { key: 'developer_token', label: 'Developer Token',               placeholder: 'ABcDeFgHiJkLmNoPqRsTuVwXyZ', sensitive: true },
@@ -128,8 +129,20 @@ function ConnectDialog({ open, onOpenChange, providers, editAccount }: ConnectDi
         provider:    editAccount?.provider ?? '',
         name:        editAccount?.name ?? '',
         account_id:  editAccount?.account_id ?? '',
-        credentials: {} as Record<string, string>,
+        // Pre-fill existing credentials when editing
+        credentials: (editAccount?.credentials ?? {}) as Record<string, string>,
     });
+
+    // Sync form values whenever editAccount changes (e.g. opening different account to edit)
+    useEffect(() => {
+        if (editAccount) {
+            setData('provider',    editAccount.provider);
+            setData('name',        editAccount.name);
+            setData('account_id',  editAccount.account_id ?? '');
+            setData('credentials', editAccount.credentials ?? {});
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editAccount?.id]);
 
     const handleClose = () => {
         reset();
@@ -137,7 +150,9 @@ function ConnectDialog({ open, onOpenChange, providers, editAccount }: ConnectDi
         onOpenChange(false);
     };
 
-    const fields: CredentialField[] = CREDENTIAL_FIELDS[data.provider] ?? [];
+    // In edit mode, provider can't change — use editAccount's provider for field lookup
+    const activeProvider = isEdit ? (editAccount?.provider ?? '') : data.provider;
+    const fields: CredentialField[] = CREDENTIAL_FIELDS[activeProvider] ?? [];
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -212,6 +227,7 @@ function ConnectDialog({ open, onOpenChange, providers, editAccount }: ConnectDi
                         />
                     </div>
 
+                    {/* API Credentials */}
                     {fields.length > 0 && (
                         <>
                             <Separator />
@@ -516,23 +532,35 @@ export default function AccountsIndex({ accounts, statistics, providers }: Props
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        {/* Sync — only for Google Play Console connected */}
+                                                        {/* View Apps — navigate to sync page WITHOUT triggering sync */}
                                                         {account.provider === 'google_play_console' && account.status === 'connected' && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <Button
-                                                                        size="icon" variant="ghost"
-                                                                        className="h-8 w-8 cursor-pointer text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                                                                        disabled={syncingId === account.id}
-                                                                        onClick={() => handleSync(account)}
-                                                                    >
-                                                                        <RefreshCw className={`h-4 w-4 ${syncingId === account.id ? 'animate-spin' : ''}`} />
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>{syncingId === account.id ? 'Syncing…' : 'Sync Apps from Play Console'}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                            <>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Link href={route('admin.accounts.play-console.sync', account.id)}>
+                                                                            <Button size="icon" variant="ghost" className="h-8 w-8 cursor-pointer text-muted-foreground hover:text-foreground">
+                                                                                <LayoutList className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </Link>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent><p>View Apps from Play Console</p></TooltipContent>
+                                                                </Tooltip>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button
+                                                                            size="icon" variant="ghost"
+                                                                            className="h-8 w-8 cursor-pointer text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                                                                            disabled={syncingId === account.id}
+                                                                            onClick={() => handleSync(account)}
+                                                                        >
+                                                                            <RefreshCw className={`h-4 w-4 ${syncingId === account.id ? 'animate-spin' : ''}`} />
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>{syncingId === account.id ? 'Syncing…' : 'Re-sync Apps from Play Console'}</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </>
                                                         )}
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
