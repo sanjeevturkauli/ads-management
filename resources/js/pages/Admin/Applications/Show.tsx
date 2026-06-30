@@ -158,6 +158,17 @@ export default function ApplicationShow({ application }: Props) {
 
     const isSyncing = syncing || appState.sync_status === 'syncing' || appState.sync_status === 'pending';
 
+    // If stuck in syncing for > 2 min, stop polling — queue may not be running
+    const syncStartedAt = useRef<number | null>(null);
+    useEffect(() => {
+        if (isSyncing && !syncStartedAt.current) {
+            syncStartedAt.current = Date.now();
+        }
+        if (!isSyncing) {
+            syncStartedAt.current = null;
+        }
+    }, [isSyncing]);
+
     return (
         <>
             <Head title={`${appState.name}`} />
@@ -278,11 +289,22 @@ export default function ApplicationShow({ application }: Props) {
                     <Card className="py-3">
                         <CardContent className="px-4">
                             <p className="text-xs text-muted-foreground">Sync</p>
-                            <div className="mt-0.5 flex items-center gap-1">
+                            <div className="mt-0.5 flex items-center gap-1 flex-wrap">
                                 {appState.sync_status === 'synced' && <Badge className="bg-green-500 text-xs">Synced</Badge>}
                                 {appState.sync_status === 'failed' && <Badge className="bg-red-500 text-xs">Failed</Badge>}
                                 {(appState.sync_status === 'pending' || appState.sync_status === 'syncing') && (
-                                    <Badge className="bg-blue-500 text-xs animate-pulse">Syncing…</Badge>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge className="bg-blue-500 text-xs animate-pulse cursor-help">Queued…</Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs">
+                                            <p className="font-medium">Waiting for queue worker</p>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Ensure <code>php artisan queue:work</code> is running,
+                                                or a cron job is set for <code>php artisan schedule:run</code>.
+                                            </p>
+                                        </TooltipContent>
+                                    </Tooltip>
                                 )}
                                 {!appState.sync_status && <span className="text-xs text-muted-foreground">—</span>}
                             </div>
