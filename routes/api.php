@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Route;
 // Public health check (no authentication required)
 Route::get('/health', [ConfigController::class, 'health'])->name('api.health');
 
+// Public API - Get application details by package name (no authentication required)
+Route::get('/v1/app/{packageName}', [ConfigController::class, 'getPublicAppDetails'])->name('api.app.details');
+
 // API routes with key authentication
 Route::middleware(['api.key', 'api.log'])->prefix('v1')->group(function () {
     // Get application configuration

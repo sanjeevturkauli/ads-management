@@ -15,6 +15,66 @@ class ConfigController extends Controller
     }
 
     /**
+     * Get public application details by package name (no authentication required).
+     *
+     * @group Public API
+     */
+    public function getPublicAppDetails(string $packageName): JsonResponse
+    {
+        try {
+            $application = $this->applicationService->findByPackageName($packageName);
+
+            if (!$application) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Application not found',
+                    'error' => 'APP_NOT_FOUND',
+                    'data' => null,
+                ], 404);
+            }
+
+            // Check if application is active
+            if ($application->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Application is not active',
+                    'error' => 'APP_NOT_ACTIVE',
+                    'data' => [
+                        'status' => $application->status,
+                    ],
+                ], 403);
+            }
+
+            // Return public application details
+            return response()->json([
+                'success' => true,
+                'message' => 'Application details retrieved successfully',
+                'data' => [
+                    'name' => $application->name,
+                    'package_name' => $application->package_name,
+                    'platform' => $application->platform,
+                    'icon_url' => $application->icon_url,
+                    'description' => $application->description,
+                    'current_version' => $application->current_version,
+                    'minimum_version' => $application->minimum_version,
+                    'latest_version' => $application->latest_version,
+                    'status' => $application->status,
+                    'force_update' => $application->getSetting('force_update', false),
+                    'maintenance_mode' => $application->getSetting('maintenance_mode', false),
+                    'ads_enabled' => $application->getSetting('ads_enabled', true),
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while retrieving application details',
+                'error' => 'INTERNAL_ERROR',
+                'data' => null,
+            ], 500);
+        }
+    }
+
+    /**
      * Get application configuration.
      *
      * @group API
