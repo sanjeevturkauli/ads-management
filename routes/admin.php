@@ -116,5 +116,15 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         Route::post('api-keys/{apiKey}/revoke', [ApiKeyController::class, 'revoke'])
             ->name('applications.api-keys.revoke');
+
+        // Announcements Management
+        Route::resource('announcements', \App\Http\Controllers\Admin\AnnouncementController::class)
+            ->only(['index', 'store', 'update', 'destroy'])
+            ->names([
+                'index' => 'applications.announcements.index',
+                'store' => 'applications.announcements.store',
+                'update' => 'applications.announcements.update',
+                'destroy' => 'applications.announcements.destroy',
+            ]);
     });
 });

@@ -2,11 +2,12 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useState, useRef, useCallback , useEffect } from 'react';
 import { route } from '@/lib/route';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
 import {
     ArrowLeft, Edit, Settings, Key, FileText,
     History, Megaphone, GitBranch, ExternalLink,
     Star, Download, RefreshCw, Globe, Shield,
-    Calendar, Store, MonitorSmartphone,
+    Calendar, Store, MonitorSmartphone, Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +58,7 @@ type Application = {
     api_keys?: ApiKey[];
     settings?: AppSetting[];
     versions?: AppVersion[];
+    announcements?: Announcement[];
 };
 
 type AdUnit = {
@@ -72,6 +74,14 @@ type ApiKey = {
 };
 type AppSetting = { id: string; key: string; value: string; type: string };
 type AppVersion = { id: string; version: string; release_notes?: string; is_active: boolean; released_at: string };
+type Announcement = { 
+    id: string; 
+    message: string; 
+    start_date: string; 
+    end_date: string; 
+    status: 'active' | 'inactive';
+    creator?: { name: string };
+};
 type Props = { application: Application };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -314,10 +324,11 @@ export default function ApplicationShow({ application }: Props) {
 
                 {/* ── Tabs ────────────────────────────────────────────────── */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-                    <TabsList className="w-full grid grid-cols-6">
+                    <TabsList className="w-full grid grid-cols-7">
                         <TabsTrigger value="overview"><Store className="mr-1.5 h-3.5 w-3.5" />Overview</TabsTrigger>
                         <TabsTrigger value="ads"><Megaphone className="mr-1.5 h-3.5 w-3.5" />Ads ({appState.ad_units?.length ?? 0})</TabsTrigger>
                         <TabsTrigger value="api"><Key className="mr-1.5 h-3.5 w-3.5" />API Keys ({appState.api_keys?.length ?? 0})</TabsTrigger>
+                        <TabsTrigger value="announcements"><Bell className="mr-1.5 h-3.5 w-3.5" />Announcements ({appState.announcements?.length ?? 0})</TabsTrigger>
                         <TabsTrigger value="versions"><GitBranch className="mr-1.5 h-3.5 w-3.5" />Versions</TabsTrigger>
                         <TabsTrigger value="settings"><Settings className="mr-1.5 h-3.5 w-3.5" />Settings</TabsTrigger>
                         <TabsTrigger value="audit"><History className="mr-1.5 h-3.5 w-3.5" />Audit</TabsTrigger>
@@ -614,6 +625,105 @@ export default function ApplicationShow({ application }: Props) {
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* ── ANNOUNCEMENTS TAB ─────────────────────────────── */}
+                    <TabsContent value="announcements" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>Announcements</CardTitle>
+                                        <CardDescription>
+                                            App announcements with date ranges for user communication
+                                        </CardDescription>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => router.visit(route('admin.applications.announcements.index', { application: appState.id }))}
+                                    >
+                                        <Bell className="mr-2 h-4 w-4" />
+                                        Manage All
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {!appState.announcements?.length ? (
+                                    <div className="text-center py-12">
+                                        <Bell className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                                        <p className="text-muted-foreground font-medium">No announcements yet</p>
+                                        <p className="text-sm text-muted-foreground/80 mt-1">
+                                            Create announcements to communicate with your app users
+                                        </p>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="mt-4"
+                                            onClick={() => router.visit(route('admin.applications.announcements.index', { application: appState.id }))}
+                                        >
+                                            <Bell className="mr-2 h-4 w-4" />
+                                            Add Announcement
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {appState.announcements.map((announcement) => {
+                                            const startDate = new Date(announcement.start_date);
+                                            const endDate = new Date(announcement.end_date);
+                                            const now = new Date();
+                                            const isLive = announcement.status === 'active' && startDate <= now && endDate >= now;
+                                            const isExpired = endDate < now;
+                                            
+                                            return (
+                                                <div
+                                                    key={announcement.id}
+                                                    className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Badge 
+                                                                variant={announcement.status === 'active' ? 'default' : 'secondary'}
+                                                                className="text-xs"
+                                                            >
+                                                                {announcement.status}
+                                                            </Badge>
+                                                            {isLive && (
+                                                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                                                    Live
+                                                                </Badge>
+                                                            )}
+                                                            {isExpired && (
+                                                                <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                                                                    Expired
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm font-medium mb-1 line-clamp-2">{announcement.message}</p>
+                                                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                                            <span className="flex items-center gap-1">
+                                                                <Calendar className="h-3 w-3" />
+                                                                {format(startDate, 'dd MMM yyyy')}
+                                                            </span>
+                                                            <span>→</span>
+                                                            <span className="flex items-center gap-1">
+                                                                <Calendar className="h-3 w-3" />
+                                                                {format(endDate, 'dd MMM yyyy')}
+                                                            </span>
+                                                            {announcement.creator && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>by {announcement.creator.name}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </CardContent>

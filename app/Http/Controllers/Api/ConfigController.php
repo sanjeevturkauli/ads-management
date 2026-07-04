@@ -52,6 +52,13 @@ class ConfigController extends Controller
             $forceUpdate = $application->getSetting('force_update', false);
             $maintenanceMode = $application->getSetting('maintenance_mode', false);
 
+            // Check for active announcements within date range
+            $activeAnnouncement = $application->announcements()
+                ->active()
+                ->current()
+                ->latest()
+                ->first();
+
             // Load ad units with network information
             $adUnits = $application->adUnits()
                 ->with('adNetwork')
@@ -110,6 +117,12 @@ class ConfigController extends Controller
                         'app_open_id' => $adsConfig['app_open']['ad_unit_id'] ?? null,
                         // Interstitial frequency
                         'interstitial_interval' => $adsConfig['interstitial']['frequency'] ?? 3,
+                    ],
+                    'announcement' => [
+                        'is_announcement' => (bool) $activeAnnouncement,
+                        'message' => $activeAnnouncement?->message,
+                        'start_date' => $activeAnnouncement?->start_date?->format('Y-m-d'),
+                        'end_date' => $activeAnnouncement?->end_date?->format('Y-m-d'),
                     ],
                 ],
             ], 200);

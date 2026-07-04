@@ -76,6 +76,12 @@ const routes: Record<string, string> = {
     'admin.applications.api-keys.store': '/admin/applications/:application/api-keys',
     'admin.applications.api-keys.destroy': '/admin/applications/:application/api-keys/:apiKey',
     'admin.applications.api-keys.revoke': '/admin/applications/:application/api-keys/:apiKey/revoke',
+
+    // Announcements
+    'admin.applications.announcements.index': '/admin/applications/:application/announcements',
+    'admin.applications.announcements.store': '/admin/applications/:application/announcements',
+    'admin.applications.announcements.update': '/admin/applications/:application/announcements/:announcement',
+    'admin.applications.announcements.destroy': '/admin/applications/:application/announcements/:announcement',
 };
 
 export function route(name: string, params?: any): string {

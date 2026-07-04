@@ -83,6 +83,7 @@ class ApplicationController extends Controller
             'apiKeys.creator',
             'settings',
             'versions',
+            'announcements.creator',
         ]);
         
         // Get boolean settings from app_settings table
