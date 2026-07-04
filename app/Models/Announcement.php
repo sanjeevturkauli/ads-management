@@ -55,7 +55,7 @@ class Announcement extends Model
     {
         $today = today();
         return $query->where('start_date', '<=', $today)
-                     ->where('end_date', '>=', $today);
+                     ->where('end_date', '>', $today);
     }
 
     public function isActive(): bool
@@ -66,7 +66,7 @@ class Announcement extends Model
     public function isCurrent(): bool
     {
         $today = today();
-        return $this->start_date <= $today && $this->end_date >= $today;
+        return $this->start_date <= $today && $this->end_date > $today;
     }
 
     public function isValid(): bool
