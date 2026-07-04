@@ -107,6 +107,11 @@ const statusConfig = {
     archived: { label: 'Archived', icon: Archive, color: 'bg-red-500' },
 };
 
+// ─── Helper Functions ─────────────────────────────────────────────────────────
+const limitText = (text: string, limit: number = 20): string => {
+    return text.length > limit ? text.substring(0, limit) + '...' : text;
+};
+
 // ─── Play status badge ────────────────────────────────────────────────────────
 const PLAY_STATUS_STYLES: Record<string, string> = {
     PUBLISHED:   'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
@@ -621,16 +626,18 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                                             <Link
                                                                 href={route('admin.applications.show', app.id)}
                                                                 className="font-medium hover:underline truncate block"
+                                                                title={app.name}
                                                             >
-                                                                {app.name}
+                                                                {limitText(app.name, 20)}
                                                             </Link>
                                                             <a
                                                                 href={`https://play.google.com/store/apps/details?id=${app.package_name}`}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="text-xs text-blue-600 hover:underline dark:text-blue-400 truncate block"
+                                                                title={app.package_name}
                                                             >
-                                                                {app.package_name}
+                                                                {limitText(app.package_name, 25)}
                                                             </a>
                                                             {/* Metadata row */}
                                                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
