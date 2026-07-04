@@ -20,7 +20,23 @@ class Application extends Model
         'package_name',
         'platform',
         'icon_url',
+        'banner_url',
         'description',
+        'developer_name',
+        'category',
+        'rating',
+        'ratings_count',
+        'installs',
+        'screenshots',
+        'privacy_policy_url',
+        'website_url',
+        'play_store_url',
+        'store_last_updated_at',
+        'play_status',
+        'play_version_code',
+        'sync_status',
+        'last_synced_at',
+        'sync_error',
         'current_version',
         'minimum_version',
         'latest_version',
@@ -31,9 +47,14 @@ class Application extends Model
     ];
 
     protected $casts = [
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'screenshots'            => 'array',
+        'rating'                 => 'float',
+        'ratings_count'          => 'integer',
+        'store_last_updated_at'  => 'datetime',
+        'last_synced_at'         => 'datetime',
+        'created_at'             => 'datetime',
+        'updated_at'             => 'datetime',
+        'deleted_at'             => 'datetime',
     ];
 
     protected $encryptable = [

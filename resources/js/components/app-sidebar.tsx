@@ -8,7 +8,8 @@ import {
     Settings,
     FileText,
     Shield,
-    BarChart3
+    BarChart3,
+    LinkIcon
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -61,6 +62,11 @@ const mainNavItems: NavItem[] = [
         title: 'Analytics',
         href: '/admin/analytics',
         icon: BarChart3,
+    },
+    {
+        title: 'Accounts',
+        href: '/admin/accounts',
+        icon: LinkIcon,
     },
 ];
 

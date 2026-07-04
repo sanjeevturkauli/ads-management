@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { Eye, Smartphone } from 'lucide-react';
+import { Eye, Smartphone, Info } from 'lucide-react';
 import { route } from '@/lib/route';
 import { Button } from '@/components/ui/button';
 import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
@@ -36,6 +36,16 @@ export default function Dashboard({
         <>
             <Head title="Dashboard" />
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+
+                {/* Play Store metadata info banner */}
+                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 flex items-start gap-3">
+                    <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                        <strong>Play Store metadata</strong> (icon, rating, installs, category, screenshots) is only available for apps that are
+                        <strong> publicly published</strong> on the Play Store. Draft, removed, or internal-track-only apps will show minimal data.
+                        Once an app is live, use <strong>Sync</strong> to fetch full details automatically.
+                    </p>
+                </div>
                 {/* Statistics Cards */}
                 <div className="grid auto-rows-min gap-4 md:grid-cols-3 lg:grid-cols-4">
                     <div className="relative overflow-hidden rounded-xl border border-sidebar-border/70 bg-white p-6 dark:border-sidebar-border dark:bg-sidebar">

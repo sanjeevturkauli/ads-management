@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\AccountController;
 use App\Http\Controllers\Admin\AdUnitController;
 use App\Http\Controllers\Admin\ApiKeyController;
 use App\Http\Controllers\Admin\ApplicationController;
+use App\Http\Controllers\Admin\ApplicationSyncController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\GlobalSettingController;
+use App\Http\Controllers\Admin\PlayConsoleSyncController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,6 +42,18 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::post('roles/{role}/permissions', [\App\Http\Controllers\Admin\RoleController::class, 'syncPermissions'])
         ->name('roles.sync-permissions');
 
+    // Connected Accounts
+    Route::get('accounts', [AccountController::class, 'index'])->name('accounts.index');
+    Route::post('accounts', [AccountController::class, 'store'])->name('accounts.store');
+    Route::put('accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
+    Route::post('accounts/{account}/toggle', [AccountController::class, 'toggleStatus'])->name('accounts.toggle');
+    Route::delete('accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
+
+    // Google Play Console Sync
+    Route::get('accounts/{account}/play-console/sync', [PlayConsoleSyncController::class, 'preview'])->name('accounts.play-console.sync');
+    Route::post('accounts/{account}/play-console/import', [PlayConsoleSyncController::class, 'import'])->name('accounts.play-console.import');
+    Route::post('accounts/{account}/play-console/test', [PlayConsoleSyncController::class, 'testConnection'])->name('accounts.play-console.test');
+
     // Analytics
     Route::get('analytics', [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])->name('analytics.index');
 
@@ -57,6 +72,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
     // Applications Management
     Route::resource('applications', ApplicationController::class);
+
+    // Application metadata sync
+    Route::post('applications/{application}/sync', [ApplicationSyncController::class, 'syncOne'])->name('applications.sync');
+    Route::get('applications/{application}/sync-status', [ApplicationSyncController::class, 'status'])->name('applications.sync-status');
+    Route::post('applications/sync-all', [ApplicationSyncController::class, 'syncAll'])->name('applications.sync-all');
     
     Route::post('applications/bulk-status', [ApplicationController::class, 'bulkUpdateStatus'])
         ->name('applications.bulk-status');
