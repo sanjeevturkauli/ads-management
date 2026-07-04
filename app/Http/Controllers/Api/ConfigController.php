@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\ApplicationService;
 use App\Services\ConfigService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,7 +11,8 @@ use Illuminate\Http\Request;
 class ConfigController extends Controller
 {
     public function __construct(
-        private readonly ConfigService $configService
+        private readonly ConfigService $configService,
+        private readonly ApplicationService $applicationService
     ) {
     }
 
