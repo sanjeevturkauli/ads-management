@@ -47,23 +47,70 @@ class ConfigController extends Controller
                 ], 403);
             }
 
-            // Return public application details
+            // Get application settings
+            $adsEnabled = $application->getSetting('ads_enabled', true);
+            $forceUpdate = $application->getSetting('force_update', false);
+            $maintenanceMode = $application->getSetting('maintenance_mode', false);
+
+            // Load ad units with network information
+            $adUnits = $application->adUnits()
+                ->with('adNetwork')
+                ->enabled()
+                ->orderByPriority()
+                ->get()
+                ->groupBy('ad_type');
+
+            // Build ads configuration
+            $adsConfig = [];
+            foreach ($adUnits as $type => $units) {
+                $primaryUnit = $units->first();
+                if ($primaryUnit) {
+                    $adsConfig[$type] = [
+                        'enabled' => $primaryUnit->is_enabled,
+                        'ad_unit_id' => $primaryUnit->getDecrypted('encrypted_ad_unit_id'),
+                        'frequency' => $primaryUnit->frequency,
+                        'refresh_interval' => $primaryUnit->refresh_interval,
+                        'network' => $primaryUnit->adNetwork->provider ?? 'admob',
+                    ];
+                }
+            }
+
+            // Return public application details with ads data
             return response()->json([
                 'success' => true,
                 'message' => 'Application details retrieved successfully',
                 'data' => [
-                    'name' => $application->name,
-                    'package_name' => $application->package_name,
-                    'platform' => $application->platform,
-                    'icon_url' => $application->icon_url,
-                    'description' => $application->description,
-                    'current_version' => $application->current_version,
-                    'minimum_version' => $application->minimum_version,
-                    'latest_version' => $application->latest_version,
-                    'status' => $application->status,
-                    'force_update' => $application->getSetting('force_update', false),
-                    'maintenance_mode' => $application->getSetting('maintenance_mode', false),
-                    'ads_enabled' => $application->getSetting('ads_enabled', true),
+                    'app' => [
+                        'name' => $application->name,
+                        'package_name' => $application->package_name,
+                        'platform' => $application->platform,
+                        'icon_url' => $application->icon_url,
+                        'description' => $application->description,
+                        'current_version' => $application->current_version,
+                        'minimum_version' => $application->minimum_version,
+                        'latest_version' => $application->latest_version,
+                        'status' => $application->status,
+                        'force_update' => $forceUpdate,
+                        'maintenance_mode' => $maintenanceMode,
+                    ],
+                    'ads' => [
+                        'enabled' => $adsEnabled,
+                        'ad_units' => $adsConfig,
+                        // Backward compatibility - individual ad type flags
+                        'banner_enabled' => isset($adsConfig['banner']),
+                        'interstitial_enabled' => isset($adsConfig['interstitial']),
+                        'rewarded_enabled' => isset($adsConfig['rewarded']),
+                        'native_enabled' => isset($adsConfig['native']),
+                        'app_open_enabled' => isset($adsConfig['app_open']),
+                        // Backward compatibility - individual ad unit IDs
+                        'banner_id' => $adsConfig['banner']['ad_unit_id'] ?? null,
+                        'interstitial_id' => $adsConfig['interstitial']['ad_unit_id'] ?? null,
+                        'rewarded_id' => $adsConfig['rewarded']['ad_unit_id'] ?? null,
+                        'native_id' => $adsConfig['native']['ad_unit_id'] ?? null,
+                        'app_open_id' => $adsConfig['app_open']['ad_unit_id'] ?? null,
+                        // Interstitial frequency
+                        'interstitial_interval' => $adsConfig['interstitial']['frequency'] ?? 3,
+                    ],
                 ],
             ], 200);
         } catch (\Exception $e) {
