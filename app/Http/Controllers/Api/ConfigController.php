@@ -67,7 +67,7 @@ class ConfigController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while retrieving application details',
+                'message' => $e->getMessage(),
                 'error' => 'INTERNAL_ERROR',
                 'data' => null,
             ], 500);
