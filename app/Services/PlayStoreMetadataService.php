@@ -82,6 +82,9 @@ class PlayStoreMetadataService
     /**
      * Fetch metadata with 24-hour cache.
      * Pass $forceRefresh = true to bypass cache.
+     * 
+     * Note: We store as array and reconstruct DTO to avoid serialization issues
+     * with readonly classes.
      */
     public function fetchWithCache(string $packageName, bool $forceRefresh = false): ?PlayStoreMetadata
     {
@@ -91,11 +94,59 @@ class PlayStoreMetadataService
             Cache::forget($cacheKey);
         }
 
-        return Cache::remember(
-            $cacheKey,
-            now()->addHours(self::CACHE_TTL_HOURS),
-            fn() => $this->parser->fetch($packageName)
-        );
+        // Get cached data as array
+        $cachedData = Cache::get($cacheKey);
+
+        if ($cachedData && is_array($cachedData) && !$forceRefresh) {
+            // Reconstruct DTO from cached array
+            return new PlayStoreMetadata(
+                packageName: $cachedData['packageName'] ?? $packageName,
+                title: $cachedData['title'] ?? null,
+                iconUrl: $cachedData['iconUrl'] ?? null,
+                bannerUrl: $cachedData['bannerUrl'] ?? null,
+                description: $cachedData['description'] ?? null,
+                developerName: $cachedData['developerName'] ?? null,
+                category: $cachedData['category'] ?? null,
+                rating: $cachedData['rating'] ?? null,
+                ratingsCount: $cachedData['ratingsCount'] ?? null,
+                installs: $cachedData['installs'] ?? null,
+                privacyPolicyUrl: $cachedData['privacyPolicyUrl'] ?? null,
+                websiteUrl: $cachedData['websiteUrl'] ?? null,
+                playStoreUrl: $cachedData['playStoreUrl'] ?? null,
+                screenshots: $cachedData['screenshots'] ?? [],
+                storeLastUpdated: $cachedData['storeLastUpdated'] ?? null,
+            );
+        }
+
+        // Fetch fresh data
+        $metadata = $this->parser->fetch($packageName);
+
+        if ($metadata) {
+            // Store as array to avoid serialization issues
+            Cache::put(
+                $cacheKey,
+                [
+                    'packageName' => $metadata->packageName,
+                    'title' => $metadata->title,
+                    'iconUrl' => $metadata->iconUrl,
+                    'bannerUrl' => $metadata->bannerUrl,
+                    'description' => $metadata->description,
+                    'developerName' => $metadata->developerName,
+                    'category' => $metadata->category,
+                    'rating' => $metadata->rating,
+                    'ratingsCount' => $metadata->ratingsCount,
+                    'installs' => $metadata->installs,
+                    'privacyPolicyUrl' => $metadata->privacyPolicyUrl,
+                    'websiteUrl' => $metadata->websiteUrl,
+                    'playStoreUrl' => $metadata->playStoreUrl,
+                    'screenshots' => $metadata->screenshots,
+                    'storeLastUpdated' => $metadata->storeLastUpdated,
+                ],
+                now()->addHours(self::CACHE_TTL_HOURS)
+            );
+        }
+
+        return $metadata;
     }
 
     /**
