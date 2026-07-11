@@ -93,6 +93,56 @@ class GlobalSettingSeeder extends Seeder
                 'description' => 'Default interstitial ad frequency',
                 'is_public' => true,
             ],
+            [
+                'key' => 'global_ads_mode',
+                'value' => 'false',
+                'type' => 'boolean',
+                'group' => 'ads',
+                'description' => 'Enable test ads mode globally (true = test ads, false = real ads)',
+                'is_public' => true,
+            ],
+            
+            // Test Ad Unit IDs (used when global_ads_mode is true)
+            [
+                'key' => 'test_banner_id',
+                'value' => 'ca-app-pub-3940256099942544/6300978111',
+                'type' => 'string',
+                'group' => 'ads',
+                'description' => 'Test ad unit ID for banner ads',
+                'is_public' => true,
+            ],
+            [
+                'key' => 'test_interstitial_id',
+                'value' => 'ca-app-pub-3940256099942544/1033173712',
+                'type' => 'string',
+                'group' => 'ads',
+                'description' => 'Test ad unit ID for interstitial ads',
+                'is_public' => true,
+            ],
+            [
+                'key' => 'test_rewarded_id',
+                'value' => 'ca-app-pub-3940256099942544/5224354917',
+                'type' => 'string',
+                'group' => 'ads',
+                'description' => 'Test ad unit ID for rewarded ads',
+                'is_public' => true,
+            ],
+            [
+                'key' => 'test_native_id',
+                'value' => 'ca-app-pub-3940256099942544/2247696110',
+                'type' => 'string',
+                'group' => 'ads',
+                'description' => 'Test ad unit ID for native advanced ads',
+                'is_public' => true,
+            ],
+            [
+                'key' => 'test_app_open_id',
+                'value' => 'ca-app-pub-3940256099942544/9257395921',
+                'type' => 'string',
+                'group' => 'ads',
+                'description' => 'Test ad unit ID for app open ads',
+                'is_public' => true,
+            ],
 
             // Review Dialog
             [

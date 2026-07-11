@@ -205,4 +205,16 @@ class ApplicationController extends Controller
 
         return back()->with('success', "{$count} applications deleted successfully.");
     }
+
+    public function toggleTestMode(Application $application): \Illuminate\Http\JsonResponse
+    {
+        $application->test_mode = !$application->test_mode;
+        $application->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Test mode updated successfully.',
+            'test_mode' => $application->test_mode,
+        ]);
+    }
 }

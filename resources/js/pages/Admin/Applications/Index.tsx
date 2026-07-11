@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { DeleteConfirmationModal } from '@/components/delete-confirmation-modal';
 import { TableActions } from '@/components/table-actions';
 import { ButtonGroup } from '@/components/ui/button-group';
@@ -70,6 +71,7 @@ type Application = {
     sync_error?: string;
     current_version: string;
     ads_enabled: boolean;
+    test_mode: boolean;
     created_at: string;
     updated_at: string;
 };
@@ -328,6 +330,30 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
         );
     };
 
+    const handleTestModeToggle = (appId: string, currentValue: boolean) => {
+        const promise = fetch(route('admin.applications.toggle-test-mode', appId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content,
+            },
+        })
+            .then(async (res) => {
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.message || 'Failed to update test mode');
+                }
+                router.reload({ only: ['applications'] });
+                return data;
+            });
+
+        toast.promise(promise, {
+            loading: 'Updating test mode...',
+            success: `Test mode ${!currentValue ? 'enabled' : 'disabled'}`,
+            error: (err) => err.message || 'Failed to update test mode',
+        });
+    };
+
     const handleDelete = (appId: string) => {
         setAppToDelete(appId);
         setIsBulkDelete(false);
@@ -575,6 +601,7 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                     <TableHead>Version</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Ads</TableHead>
+                                    <TableHead>Test Mode</TableHead>
                                     <TableHead>Play Store</TableHead>
                                     <TableHead>Sync</TableHead>
                                     <TableHead>Created</TableHead>
@@ -688,6 +715,17 @@ export default function ApplicationsIndex({ applications, statistics, filters }:
                                                     ) : (
                                                         <Badge variant="secondary">Disabled</Badge>
                                                     )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <Switch
+                                                            checked={app.test_mode}
+                                                            onCheckedChange={() => handleTestModeToggle(app.id, app.test_mode)}
+                                                        />
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {app.test_mode ? 'On' : 'Off'}
+                                                        </span>
+                                                    </div>
                                                 </TableCell>
                                                 {/* Play Store status */}
                                                 <TableCell>

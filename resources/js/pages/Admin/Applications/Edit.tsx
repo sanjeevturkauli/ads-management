@@ -33,6 +33,7 @@ type Application = {
     description?: string;
     current_version: string;
     ads_enabled: boolean;
+    test_mode: boolean;
     maintenance_mode: boolean;
     force_update: boolean;
     minimum_version?: string;
@@ -49,6 +50,7 @@ type FormData = {
     description?: string;
     current_version: string;
     ads_enabled: boolean;
+    test_mode: boolean;
     maintenance_mode: boolean;
     force_update: boolean;
     minimum_version?: string;
@@ -70,6 +72,7 @@ export default function ApplicationEdit({ application }: Props) {
         description: application.description || '',
         current_version: application.current_version,
         ads_enabled: application.ads_enabled,
+        test_mode: application.test_mode,
         maintenance_mode: application.maintenance_mode,
         force_update: application.force_update,
         minimum_version: application.minimum_version || '',
@@ -356,6 +359,19 @@ export default function ApplicationEdit({ application }: Props) {
                                 <Switch
                                     checked={data.ads_enabled}
                                     onCheckedChange={(checked) => setData('ads_enabled', checked)}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between rounded-lg border p-4">
+                                <div className="space-y-0.5">
+                                    <Label>Test Mode</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Use test ad IDs instead of real ad units
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={data.test_mode}
+                                    onCheckedChange={(checked) => setData('test_mode', checked)}
                                 />
                             </div>
 

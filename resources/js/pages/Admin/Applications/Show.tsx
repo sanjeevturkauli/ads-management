@@ -25,6 +25,7 @@ type Application = {
     package_name: string;
     platform: 'android' | 'ios';
     status: 'active' | 'inactive' | 'maintenance' | 'archived';
+    test_mode: boolean;
     icon_url?: string;
     banner_url?: string;
     description?: string;
@@ -483,6 +484,7 @@ export default function ApplicationShow({ application }: Props) {
                                         <Separator />
                                         {[
                                             { label: 'Ads Enabled', val: appState.ads_enabled },
+                                            { label: 'Test Mode', val: appState.test_mode },
                                             { label: 'Maintenance Mode', val: appState.maintenance_mode },
                                             { label: 'Force Update', val: appState.force_update },
                                             { label: 'Review Dialog', val: appState.review_dialog_enabled },

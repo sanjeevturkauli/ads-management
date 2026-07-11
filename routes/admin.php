@@ -73,6 +73,10 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     // Applications Management
     Route::resource('applications', ApplicationController::class);
 
+    // Application toggle test mode
+    Route::post('applications/{application}/toggle-test-mode', [ApplicationController::class, 'toggleTestMode'])
+        ->name('applications.toggle-test-mode');
+
     // Application metadata sync
     Route::post('applications/{application}/sync', [ApplicationSyncController::class, 'syncOne'])->name('applications.sync');
     Route::get('applications/{application}/sync-status', [ApplicationSyncController::class, 'status'])->name('applications.sync-status');

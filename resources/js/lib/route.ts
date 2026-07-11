@@ -46,6 +46,7 @@ const routes: Record<string, string> = {
     'admin.applications.edit': '/admin/applications/:id/edit',
     'admin.applications.update': '/admin/applications/:id',
     'admin.applications.destroy': '/admin/applications/:id',
+    'admin.applications.toggle-test-mode': '/admin/applications/:id/toggle-test-mode',
     'admin.applications.bulk-status': '/admin/applications/bulk-status',
     'admin.applications.bulk-delete': '/admin/applications/bulk-delete',
     'admin.applications.sync': '/admin/applications/:id/sync',

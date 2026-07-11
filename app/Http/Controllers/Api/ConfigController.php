@@ -51,6 +51,10 @@ class ConfigController extends Controller
             $adsEnabled = $application->getSetting('ads_enabled', true);
             $forceUpdate = $application->getSetting('force_update', false);
             $maintenanceMode = $application->getSetting('maintenance_mode', false);
+            $globalAdsMode = \App\Models\GlobalSetting::get('global_ads_mode', false);
+            
+            // Check if test mode is enabled (global OR application-specific)
+            $isTestModeEnabled = $globalAdsMode || $application->test_mode;
 
             // Check for active announcements within date range
             $activeAnnouncement = $application->announcements()
@@ -67,20 +71,43 @@ class ConfigController extends Controller
                 ->get()
                 ->groupBy('ad_type');
 
+            // Get test ad unit IDs from global settings
+            $testAdIds = [
+                'banner' => \App\Models\GlobalSetting::get('test_banner_id'),
+                'interstitial' => \App\Models\GlobalSetting::get('test_interstitial_id'),
+                'rewarded' => \App\Models\GlobalSetting::get('test_rewarded_id'),
+                'native' => \App\Models\GlobalSetting::get('test_native_id'),
+                'app_open' => \App\Models\GlobalSetting::get('test_app_open_id'),
+            ];
+
             // Build ads configuration
             $adsConfig = [];
             foreach ($adUnits as $type => $units) {
                 $primaryUnit = $units->first();
                 if ($primaryUnit) {
+                    // Use test ID if test mode is enabled (global OR app-specific), otherwise use real ad unit ID
+                    $adUnitId = $isTestModeEnabled && isset($testAdIds[$type]) 
+                        ? $testAdIds[$type] 
+                        : $primaryUnit->getDecrypted('encrypted_ad_unit_id');
+                    
                     $adsConfig[$type] = [
                         'enabled' => $primaryUnit->is_enabled,
-                        'ad_unit_id' => $primaryUnit->getDecrypted('encrypted_ad_unit_id'),
+                        'ad_unit_id' => $adUnitId,
                         'frequency' => $primaryUnit->frequency,
                         'refresh_interval' => $primaryUnit->refresh_interval,
                         'network' => $primaryUnit->adNetwork->provider ?? 'admob',
                     ];
                 }
             }
+
+            // Prepare test_ids object (only included when test mode is enabled)
+            $testIdsObject = $isTestModeEnabled ? [
+                'banner' => $testAdIds['banner'],
+                'interstitial' => $testAdIds['interstitial'],
+                'rewarded' => $testAdIds['rewarded'],
+                'native' => $testAdIds['native'],
+                'app_open' => $testAdIds['app_open'],
+            ] : null;
 
             // Return public application details with ads data
             return response()->json([
@@ -102,6 +129,9 @@ class ConfigController extends Controller
                     ],
                     'ads' => [
                         'enabled' => $adsEnabled,
+                        'global_ads_mode' => (bool) $globalAdsMode,
+                        'app_test_mode' => (bool) $application->test_mode,
+                        'test_ids' => $testIdsObject,
                         'ad_units' => $adsConfig,
                         // Backward compatibility - individual ad type flags
                         'banner_enabled' => isset($adsConfig['banner']),
